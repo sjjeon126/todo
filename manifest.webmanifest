@@ -9,8 +9,8 @@
   "theme_color": "#f7f5fc",
   "icons": [
     {
-      "src": "todo.png",
-      "sizes": "403x288",
+      "src": "icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     }
