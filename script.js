@@ -95,7 +95,15 @@ function createTaskRow(task, key, summary = false) {
   li.classList.toggle('done', task.done);
   const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = task.done;
   checkbox.setAttribute('aria-label', `${task.text} 완료`);
-  checkbox.addEventListener('change', () => { task.done = checkbox.checked; saveData(); renderAll(); });
+  checkbox.addEventListener('change', () => {
+    task.done = checkbox.checked;
+    if (task.done) {
+      const tasks = tasksFor(key);
+      const index = tasks.findIndex(item => item.id === task.id);
+      if (index >= 0) tasks.push(...tasks.splice(index, 1));
+    }
+    saveData(); renderAll();
+  });
   const text = document.createElement('button'); text.type = 'button'; text.className = 'task-text'; text.textContent = task.text;
   text.setAttribute('aria-label', `${task.text}, 날짜 및 순서 변경`);
   const surface = summary ? document.createElement('div') : li;
