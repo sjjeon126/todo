@@ -37,6 +37,7 @@ function saveData() {
   catch { notice('저장 실패. 현재 변경 내용은 새로고침하면 사라질 수 있습니다.'); }
 }
 function renderToday() {
+  openedSwipe?.close();
   $('#today-date').textContent = fromKey(today).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
   const container = $('#today-summary'); container.replaceChildren();
   const tasks = tasksFor(today);
@@ -83,6 +84,11 @@ function renderDay() {
 function renderAll() { cancelGesture?.(); renderToday(); renderCalendar(); renderDay(); }
 let activeTask = null;
 let cancelGesture = null;
+let openedSwipe = null;
+
+document.addEventListener('pointerdown', event => {
+  if (openedSwipe && !openedSwipe.row.contains(event.target)) openedSwipe.close();
+}, { capture: true });
 
 function createTaskRow(task, key, summary = false) {
   const li = document.createElement('li'); li.className = 'todo-row'; li.dataset.id = task.id;
@@ -92,20 +98,50 @@ function createTaskRow(task, key, summary = false) {
   checkbox.addEventListener('change', () => { task.done = checkbox.checked; saveData(); renderAll(); });
   const text = document.createElement('button'); text.type = 'button'; text.className = 'task-text'; text.textContent = task.text;
   text.setAttribute('aria-label', `${task.text}, 날짜 및 순서 변경`);
-  li.append(checkbox, text);
-  if (!summary) {
-    const remove = document.createElement('button'); remove.className = 'delete-button'; remove.type = 'button'; remove.textContent = '×'; remove.setAttribute('aria-label', `${task.text} 삭제`);
-    remove.addEventListener('click', () => {
-      const index = tasksFor(key).findIndex(item => item.id === task.id); if (index < 0) return;
-      data[key].splice(index, 1); if (!data[key].length) delete data[key];
-      saveData(); renderAll();
-      const targets = $('#todo-list').querySelectorAll('.delete-button');
-      (targets[Math.min(index, targets.length - 1)] || $('#todo-input')).focus();
-    });
-    li.append(remove);
-  }
-  attachTaskGesture(text, li, task, key);
+  const surface = summary ? document.createElement('div') : li;
+  if (summary) { li.classList.add('swipe-row'); surface.className = 'summary-content'; li.append(surface); }
+  surface.append(checkbox, text);
+  const remove = document.createElement('button'); remove.className = summary ? 'swipe-delete' : 'delete-button'; remove.type = 'button'; remove.textContent = summary ? '삭제' : '×'; remove.setAttribute('aria-label', `${task.text} 삭제`);
+  remove.addEventListener('click', () => {
+    const index = tasksFor(key).findIndex(item => item.id === task.id); if (index < 0) return;
+    data[key].splice(index, 1); if (!data[key].length) delete data[key];
+    saveData(); renderAll();
+    const targets = $(summary ? '#today-summary' : '#todo-list').querySelectorAll(summary ? '.task-text' : '.delete-button');
+    (targets[Math.min(index, targets.length - 1)] || $(summary ? '#open-today' : '#todo-input')).focus();
+  });
+  li.append(remove);
+  const swipe = summary ? createSwipeControl(li, surface, remove) : null;
+  attachTaskGesture(text, li, task, key, swipe);
   return li;
+}
+
+function createSwipeControl(row, surface, remove) {
+  const swipe = {
+    row, surface, offset: 0, isOpen: false, width: 80,
+    set(offset) {
+      this.offset = Math.max(-this.width, Math.min(0, offset));
+      surface.style.transform = `translateX(${this.offset}px)`;
+      row.classList.toggle('swipe-revealed', this.offset < 0);
+    },
+    settle(open) {
+      row.classList.remove('swiping');
+      this.isOpen = open;
+      this.set(open ? -this.width : 0);
+      remove.disabled = !open; remove.tabIndex = open ? 0 : -1;
+      remove.setAttribute('aria-hidden', String(!open));
+      if (open) { if (openedSwipe !== this) openedSwipe?.close(); openedSwipe = this; }
+      else if (openedSwipe === this) openedSwipe = null;
+    },
+    close() { this.settle(false); }
+  };
+  swipe.close();
+  surface.addEventListener('keydown', event => {
+    if (event.key === 'ArrowLeft') { event.preventDefault(); swipe.settle(true); remove.focus(); }
+  });
+  row.addEventListener('keydown', event => {
+    if (event.key === 'Escape' || event.key === 'ArrowRight') { swipe.close(); row.querySelector('.task-text').focus(); }
+  });
+  return swipe;
 }
 
 function openTask(task, key) {
@@ -154,9 +190,16 @@ for (const [selector, step] of [['#move-up', -1], ['#move-down', 1]]) {
 }
 
 // Wait for a stationary long press so ordinary vertical swipes still scroll on iPhone.
-function attachTaskGesture(button, row, task, key) {
+function attachTaskGesture(button, row, task, key, swipe = null) {
   let pending = null;
   let suppressClickUntil = 0;
+  const surface = swipe?.surface || button;
+  surface.addEventListener('click', event => {
+    if (Date.now() < suppressClickUntil || swipe?.isOpen) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (Date.now() >= suppressClickUntil) swipe?.close();
+    }
+  }, { capture: true });
   button.addEventListener('click', event => {
     if (Date.now() < suppressClickUntil) { event.preventDefault(); return; }
     openTask(task, key);
@@ -170,6 +213,11 @@ function attachTaskGesture(button, row, task, key) {
     window.removeEventListener('pointerup', mouseEnd);
     window.removeEventListener('pointercancel', abort);
     cancelGesture = null;
+    if (state.swiping) {
+      suppressClickUntil = Date.now() + 700;
+      swipe.settle(commit ? swipe.offset < -swipe.width / 2 : state.swipeStart < 0);
+      return;
+    }
     if (!state.dragging) return;
     suppressClickUntil = Date.now() + 700;
     state.ghost.remove(); row.classList.remove('drag-placeholder');
@@ -187,7 +235,13 @@ function attachTaskGesture(button, row, task, key) {
   function abort() { finish(false); }
   function position() {
     const state = pending; if (!state?.dragging) return;
-    state.ghost.style.top = `${state.y - state.offset}px`;
+    const top = state.y - state.offset;
+    state.ghost.style.top = `${top}px`;
+    state.ghost.style.left = `${state.left}px`;
+    // Match viewport touch coordinates even if the overlay's positioning origin differs.
+    const actual = state.ghost.getBoundingClientRect();
+    state.ghost.style.top = `${top + (top - actual.top)}px`;
+    state.ghost.style.left = `${state.left + (state.left - actual.left)}px`;
     const siblings = [...state.list.children].filter(item => item !== row);
     const next = siblings.find(item => { const rect = item.getBoundingClientRect(); return state.y < rect.top + rect.height / 2; });
     state.list.insertBefore(row, next || null);
@@ -202,15 +256,21 @@ function attachTaskGesture(button, row, task, key) {
   }
   function begin(x, y) {
     cancelGesture?.();
-    const state = { x, y, startY: y, list: row.parentElement, dragging: false };
+    if (openedSwipe !== swipe) openedSwipe?.close();
+    const state = { x, y, startY: y, list: row.parentElement, dragging: false, swipeStart: swipe?.offset || 0 };
     pending = state; cancelGesture = abort;
     state.timer = setTimeout(() => {
       if (pending !== state) return;
+      swipe?.close();
       const rect = row.getBoundingClientRect();
-      state.dragging = true; state.offset = state.y - rect.top;
-      const ghost = document.createElement('div'); ghost.className = 'drag-ghost'; ghost.textContent = task.text;
-      ghost.setAttribute('aria-hidden', 'true'); ghost.style.left = `${rect.left}px`; ghost.style.width = `${rect.width}px`;
-      ghost.style.minHeight = `${rect.height}px`; state.ghost = ghost;
+      state.dragging = true; state.offset = state.y - rect.top; state.left = rect.left;
+      // Keep the original row layout so the text stays exactly where it was pressed.
+      const ghost = document.createElement('ul'); ghost.className = `${state.list.className} drag-ghost`;
+      const appearance = getComputedStyle(row);
+      ghost.style.font = appearance.font; ghost.style.color = appearance.color;
+      ghost.append(row.cloneNode(true)); ghost.inert = true;
+      ghost.setAttribute('aria-hidden', 'true'); ghost.style.width = `${rect.width}px`;
+      state.ghost = ghost;
       (row.closest('dialog') || document.body).append(ghost);
       row.classList.add('drag-placeholder'); document.body.classList.add('reordering');
       suppressClickUntil = Date.now() + 700;
@@ -219,28 +279,37 @@ function attachTaskGesture(button, row, task, key) {
   }
   function move(x, y, event) {
     if (!pending) return;
-    if (!pending.dragging && Math.hypot(x - pending.x, y - pending.startY) > 10) {
-      suppressClickUntil = Date.now() + 700; finish(false); return;
+    const dx = x - pending.x; const dy = y - pending.startY;
+    if (!pending.dragging && !pending.swiping && Math.hypot(dx, dy) > 10) {
+      if (swipe && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        clearTimeout(pending.timer); pending.swiping = true;
+        row.classList.add('swiping');
+      } else { suppressClickUntil = Date.now() + 700; finish(false); return; }
+    }
+    if (pending.swiping) {
+      if (event.cancelable) event.preventDefault();
+      swipe.set(pending.swipeStart + dx);
+      return;
     }
     pending.y = y;
     if (pending.dragging) { if (event.cancelable) event.preventDefault(); position(); }
   }
-  button.addEventListener('touchstart', event => {
+  surface.addEventListener('touchstart', event => {
     if (event.touches.length !== 1) { abort(); return; }
     const touch = event.touches[0]; begin(touch.clientX, touch.clientY);
   }, { passive: true });
-  button.addEventListener('touchmove', event => {
+  surface.addEventListener('touchmove', event => {
     if (event.touches.length !== 1) { abort(); return; }
     const touch = event.touches[0]; move(touch.clientX, touch.clientY, event);
   }, { passive: false });
-  button.addEventListener('touchend', event => {
-    if (pending?.dragging && event.cancelable) event.preventDefault();
+  surface.addEventListener('touchend', event => {
+    if ((pending?.dragging || pending?.swiping) && event.cancelable) event.preventDefault();
     finish(true);
   }, { passive: false });
-  button.addEventListener('touchcancel', abort);
+  surface.addEventListener('touchcancel', abort);
   function mouseMove(event) { move(event.clientX, event.clientY, event); }
   function mouseEnd() { finish(true); }
-  button.addEventListener('pointerdown', event => {
+  surface.addEventListener('pointerdown', event => {
     if (event.pointerType !== 'mouse' || event.button !== 0) return;
     begin(event.clientX, event.clientY);
     window.addEventListener('pointermove', mouseMove);

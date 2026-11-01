@@ -19,9 +19,18 @@
 #move-date{min-width:0;flex:1;width:100%;min-height:48px;border:1px solid var(--line);border-radius:10px;background:white;color:var(--ink);padding:8px;font-size:16px}
 #move-date-form>button{border:0;border-radius:10px;padding:10px 14px;background:var(--primary);color:white}
 .drag-placeholder{opacity:.25;background:#eee9f6;border-radius:10px}
-.drag-ghost{position:fixed;z-index:10;pointer-events:none;list-style:none;padding:14px 16px;border:1px solid #b9afd8;border-radius:12px;background:#fcfbff;color:var(--ink);font-size:18px;line-height:1.6;overflow-wrap:anywhere;box-shadow:0 8px 28px #3a376733}
+.drag-ghost{position:fixed;z-index:10;pointer-events:none;list-style:none;margin:0;padding:0;border:0;outline:1px solid #b9afd8;border-radius:12px;background:#fcfbff;box-shadow:0 8px 28px #3a376733}
 .reordering,.reordering *{user-select:none!important;-webkit-user-select:none!important;cursor:grabbing!important}
 @media(max-width:540px){.task-text{font-size:18px}}
 #day-dialog .dialog-heading{justify-content:space-between}
 #day-title{font-size:18px;margin:0}
 #day-notice{font-size:13px;line-height:1.6;color:var(--muted)}
+/* Reveal a delete action behind today's row without changing its text size. */
+.summary-list .swipe-row{display:block;position:relative;overflow:hidden;border-radius:9px}
+.summary-content{position:relative;z-index:1;display:flex;align-items:center;gap:10px;width:100%;background:#eeebf7;transform:translateX(0);transition:transform .2s ease;touch-action:pan-y}
+.summary-content>input{width:17px;height:17px;margin:0;flex-shrink:0}
+.swiping .summary-content{transition:none}
+.swipe-delete{position:absolute;right:0;top:0;bottom:0;width:80px;min-height:44px;border:0;border-radius:0 9px 9px 0;background:#ff3b30;color:white;font-size:15px;font-weight:600;visibility:hidden}
+.swipe-revealed .swipe-delete{visibility:visible}
+.swipe-delete:focus-visible{outline-offset:-4px;outline-color:white}
+@media(prefers-reduced-motion:reduce){.summary-content{transition:none}}
