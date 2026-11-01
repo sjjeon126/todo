@@ -31,12 +31,19 @@
     <div class="dialog-heading"><h2 id="day-title"></h2><button id="close-dialog" class="close-button" type="button" aria-label="달력으로 돌아가기">×</button></div>
     <form id="todo-form"><label class="sr-only" for="todo-input">새로운 할 일</label><input id="todo-input" maxlength="300" placeholder="할 일 입력" autocomplete="off" required><button type="submit" aria-label="할 일 추가">+</button></form>
     <ul id="todo-list" class="todo-list"></ul>
-    <p class="gesture-hint">글자를 누르면 날짜 변경 · 꾹 누르면 순서 이동</p>
+    <p class="gesture-hint">글자를 누르면 내용·날짜 변경 · 꾹 누르면 순서 이동</p>
     <p id="day-notice" role="status" hidden></p>
   </dialog>
   <dialog id="task-dialog" aria-labelledby="task-title">
     <div class="dialog-heading"><h2 id="task-title">할 일 옵션</h2><button id="close-task" class="close-button" type="button" aria-label="옵션 닫기">×</button></div>
     <p id="task-text"></p>
+    <button id="edit-task" class="task-action" type="button">내용 수정</button>
+    <form id="edit-task-form" hidden>
+      <label for="edit-task-input">할 일 내용</label>
+      <input id="edit-task-input" maxlength="300" autocomplete="off" required aria-describedby="edit-task-error">
+      <p id="edit-task-error" role="status" hidden>할 일 내용을 입력해 주세요.</p>
+      <div class="edit-actions"><button id="cancel-edit" type="button">취소</button><button type="submit">저장</button></div>
+    </form>
     <button id="move-tomorrow" class="task-action" type="button">내일 하기</button>
     <button id="choose-date" class="task-action" type="button">다른 날짜에 하기</button>
     <form id="move-date-form" hidden>

@@ -1,6 +1,6 @@
 {
-  "name": "To-do List",
-  "short_name": "To-do List",
+  "name": "To-do",
+  "short_name": "To-do",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",

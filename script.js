@@ -105,7 +105,7 @@ function createTaskRow(task, key, summary = false) {
     saveData(); renderAll();
   });
   const text = document.createElement('button'); text.type = 'button'; text.className = 'task-text'; text.textContent = task.text;
-  text.setAttribute('aria-label', `${task.text}, 날짜 및 순서 변경`);
+  text.setAttribute('aria-label', `${task.text}, 내용, 날짜 및 순서 변경`);
   const surface = summary ? document.createElement('div') : li;
   if (summary) { li.classList.add('swipe-row'); surface.className = 'summary-content'; li.append(surface); }
   surface.append(checkbox, text);
@@ -157,6 +157,9 @@ function openTask(task, key) {
   $('#task-text').textContent = task.text;
   $('#move-date').value = key;
   $('#move-date-form').hidden = true;
+  $('#edit-task-form').hidden = true;
+  $('#edit-task-input').value = task.text;
+  $('#edit-task-error').hidden = true;
   const index = tasksFor(key).findIndex(item => item.id === task.id);
   $('#move-up').disabled = index <= 0;
   $('#move-down').disabled = index === tasksFor(key).length - 1;
@@ -185,8 +188,30 @@ $('#task-dialog').addEventListener('close', () => { activeTask = null; });
 $('#move-tomorrow').addEventListener('click', () => {
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); moveTaskTo(dateKey(tomorrow));
 });
-$('#choose-date').addEventListener('click', () => { $('#move-date-form').hidden = false; $('#move-date').focus(); });
+$('#choose-date').addEventListener('click', () => { $('#edit-task-form').hidden = true; $('#move-date-form').hidden = false; $('#move-date').focus(); });
 $('#move-date-form').addEventListener('submit', event => { event.preventDefault(); moveTaskTo($('#move-date').value); });
+$('#edit-task').addEventListener('click', () => {
+  if (!activeTask) return;
+  const task = tasksFor(activeTask.key).find(item => item.id === activeTask.id);
+  if (!task) return;
+  $('#move-date-form').hidden = true;
+  $('#edit-task-form').hidden = false;
+  $('#edit-task-error').hidden = true;
+  $('#edit-task-input').value = task.text;
+  $('#edit-task-input').focus();
+});
+$('#cancel-edit').addEventListener('click', () => { $('#edit-task-form').hidden = true; $('#edit-task').focus(); });
+$('#edit-task-input').addEventListener('input', () => { $('#edit-task-error').hidden = true; });
+$('#edit-task-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (!activeTask) return;
+  const input = $('#edit-task-input'); const text = input.value.trim();
+  if (!text) { $('#edit-task-error').hidden = false; input.focus(); return; }
+  const task = tasksFor(activeTask.key).find(item => item.id === activeTask.id);
+  if (!task) return;
+  task.text = text;
+  saveData(); $('#task-dialog').close(); renderAll();
+});
 for (const [selector, step] of [['#move-up', -1], ['#move-down', 1]]) {
   $(selector).addEventListener('click', () => {
     if (!activeTask) return;
