@@ -59,16 +59,17 @@ function renderCalendar() {
   const total = Math.ceil((first.getDay() + days) / 7) * 7;
   for (let i = 0; i < total; i++) {
     const date = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay() + i);
-    const key = dateKey(date); const count = tasksFor(key).length;
+    const key = dateKey(date); const tasks = tasksFor(key); const count = tasks.length;
+    const allDone = count > 0 && tasks.every(task => task.done);
     const button = document.createElement('button'); button.type = 'button'; button.className = 'day';
     button.classList.toggle('other', date.getMonth() !== first.getMonth());
     button.classList.toggle('today', key === today);
     button.classList.toggle('sunday', date.getDay() === 0); button.classList.toggle('saturday', date.getDay() === 6);
     button.dataset.date = key;
-    button.setAttribute('aria-label', `${date.toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'})}${key === today ? ', 오늘' : ''}, 할 일 ${count}개`);
+    button.setAttribute('aria-label', `${date.toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'})}${key === today ? ', 오늘' : ''}, 할 일 ${count}개${allDone ? ', 모두 완료' : ''}`);
     if (key === today) button.setAttribute('aria-current', 'date');
     const number = document.createElement('span'); number.className = 'day-number'; number.textContent = date.getDate(); button.append(number);
-    if (count) { const dot = document.createElement('i'); dot.className = 'dot'; dot.setAttribute('aria-hidden', 'true'); button.append(dot); }
+    if (count) { const dot = document.createElement('i'); dot.className = allDone ? 'dot completed' : 'dot'; dot.setAttribute('aria-hidden', 'true'); button.append(dot); }
     button.addEventListener('click', () => openDay(key)); container.append(button);
   }
 }
